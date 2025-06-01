@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Speedrun Axolote Turbinado</title>
+<style>
+  /* Seu CSS permanece o mesmo */
+  /* (pode copiar o CSS do código anterior aqui) */
+  /* Para encurtar, vou repetir o essencial abaixo */
+  * {
+    margin: 0; padding: 0; box-sizing: border-box;
+  }
+  body, html {
+    height: 100%;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #a0e9f9;
+    overflow: hidden;
+    user-select: none;
+  }
+  #gameContainer {
+    position: relative;
+    width: 900px;
+    max-width: 95vw;
+    height: 350px;
+    margin: 30px auto;
+    background: linear-gradient(to top, #4caf50 70%, #87d68d 30%);
+    border: 5px solid #256028;
+    border-radius: 15px;
+    overflow: hidden;
+  }
+  canvas#backgroundCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    user-select: none;
+  }
+  #ground {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(to top, #2e7d32, #4caf50);
+    box-shadow: inset 0 4px 10px rgba(0,0,0,0.2);
+    z-index: 5;
+  }
+  #axolote, #tail, #shadow {
+    position: absolute;
+    bottom: 50px;
+    left: 80px;
+    z-index: 10;
+  }
+  #shadow {
+    width: 60px;
+    height: 12px;
+    background: rgba(0,0,0,0.15);
+    border-radius: 50%;
+    filter: blur(4px);
+    transform-origin: center;
+    opacity: 0.6;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  #axolote {
+    width: 60px;
+    height: 50px;
+    background: #77c1b5;
+    border-radius: 30px 30px 30px 30px / 40px 40px 20px 20px;
+    box-shadow:
+      inset -10px 5px 0 #52a091,
+      inset 10px 0 0 #a5e3db;
+  }
+  /* Axolote olho */
+  #axolote::before {
+    content: '';
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 1px 1px 0 black;
+    animation: blink 4s infinite;
+  }
+  #axolote::after {
+    content: '';
+    position: absolute;
+    top: 17px;
+    left: 19px;
+    width: 6px;
+    height: 6px;
+    background: black;
+    border-radius: 50%;
+  }
+  @keyframes blink {
+    0%, 90%, 100% { height: 12px; }
+    95% { height: 2px; }
+  }
+  #tail {
+    width: 30px;
+    height: 50px;
+    background: #59a693;
+    border-radius: 10px 10px 40px 40px;
+    transform-origin: center bottom;
+    animation: tailSwing 500ms infinite alternate ease-in-out;
+  }
+  @keyframes tailSwing {
+    0% { transform: rotate(15deg); }
+    100% { transform: rotate(-15deg); }
+  }
+  /* Obstáculos */
+  .obstacle {
+    position: absolute;
+    bottom: 50px;
+    background: #a94442;
+    border-radius: 5px;
+    box-shadow: inset 0 5px 0 #7a2d2d;
+    z-index: 8;
+  }
+  /* HUD */
+  #hud {
+    max-width: 900px;
+    margin: 15px auto 0;
+    color: #154d27;
+    font-weight: 700;
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    font-size: 20px;
+    user-select: none;
+  }
+  /* Screens */
+  #gameOverScreen, #startScreen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(20, 77, 39, 0.85);
+    color: white;
+    font-size: 28px;
+    font-weight: 900;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 15px;
+    user-select: none;
+    z-index: 20;
+  }
+  #gameOverScreen button, #startScreen button {
+    margin-top: 20px;
+    padding: 12px 30px;
+    font-size: 22px;
+    font-weight: 700;
+    background: #7f1c1c;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  #gameOverScreen button:hover, #startScreen button:hover {
+    background: #b63434;
+  }
+  #instructions {
+    margin-top: 8px;
+    font-size: 17px;
+    color: #154d27cc;
+    user-select: none;
+    max-width: 350px;
+    text-align: center;
+  }
+  /* Partículas */
+  .particle {
+    position: absolute;
+    background: rgba(150,220,200,0.8);
+    border-radius: 50%;
+    pointer-events: none;
+    animation: particleFade 600ms forwards;
+    z-index: 15;
+  }
+  @keyframes particleFade {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to { opacity: 0; transform: translateY(-20px) scale(0.2); }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="backgroundCanvas"></canvas>
+  <div id="shadow"></div>
+  <div id="axolote"></div>
+  <div id="tail"></div>
+  <div id="ground"></div>
+  
+  <div id="startScreen">
+    <div>Speedrun Axolote</div>
+    <div id="instructions">
+      Use <b>Espaço</b> ou <b>↑</b> para pular.<br>
+      Evite os obstáculos e corra o máximo possível.<br>
+      Clique no botão para começar!
+    </div>
+    <button id="startBtn">Começar</button>
+  </div>
+
+  <div id="gameOverScreen" style="display:none;">
+    <div id="gameOverText">Game Over!</div>
+    <div id="finalStats" style="margin-top:10px; font-size: 20px; font-weight: 600; white-space: pre-line;"></div>
+    <button id="restartBtn">Reiniciar</button>
+  </div>
+</div>
+
+<div id="hud">
+  <div>Tempo: <span id="time">0.00</span>s</div>
+  <div>Distância: <span id="distance">0</span>m</div>
+  <div>Recorde: <span id="record">0.00</span>s</div>
+  <div>Multiplicador: <span id="multiplier">1x</span></div>
+</div>
+
+<script>
+(() => {
+  const gameContainer = document.getElementById('gameContainer');
+  const axolote = document.getElementById('axolote');
+  const tail = document.getElementById('tail');
+  const shadow = document.getElementById('shadow');
+  const groundHeight = 50;
+  const gameOverScreen = document.getElementById('gameOverScreen');
+  const finalStats = document.getElementById('finalStats');
+  const restartBtn = document.getElementById('restartBtn');
+  const startScreen = document.getElementById('startScreen');
+  const startBtn = document.getElementById('startBtn');
+
+  const timeDisplay = document.getElementById('time');
+  const distanceDisplay = document.getElementById('distance');
+  const recordDisplay = document.getElementById('record');
+  const multiplierDisplay = document.getElementById('multiplier');
+
+  const canvas = document.getElementById('backgroundCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let gameWidth, gameHeight;
+
+  function resize() {
+    gameWidth = gameContainer.clientWidth;
+    gameHeight = gameContainer.clientHeight;
+    canvas.width = gameWidth;
+    canvas.height = gameHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Parallax layers setup
+  class ParallaxLayer {
+    constructor(speed, drawFunc) {
+      this.speed = speed;
+      this.drawFunc = drawFunc;
+      this.offset = 0;
+    }
+    update(delta) {
+      this.offset -= this.speed * delta;
+      if (this.offset < -gameWidth) this.offset += gameWidth;
+    }
+    draw() {
+      this.drawFunc(ctx, this.offset);
+      this.drawFunc(ctx, this.offset + gameWidth);
+    }
+  }
+
+  function drawCloud(ctx, x, y, scale=1) {
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 30*scale, 20*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x+25*scale, y+5*scale, 35*scale, 25*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x+60*scale, y, 30*scale, 20*scale, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  function drawTree(ctx, x, y, scale=1) {
+    ctx.fillStyle = '#5d3a1a';
+    ctx.fillRect(x, y-50*scale, 10*scale, 50*scale);
+    ctx.fillStyle = '#2a6b24';
+    ctx.beginPath();
+    ctx.moveTo(x - 20*scale, y - 50*scale);
+    ctx.lineTo(x + 5*scale, y - 90*scale);
+    ctx.lineTo(x + 30*scale, y - 50*scale);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  const cloudsLayer = new ParallaxLayer(30, (ctx, offset) => {
+    drawCloud(ctx, offset + 100, 60, 1);
+    drawCloud(ctx, offset + 300, 80, 0.6);
+    drawCloud(ctx, offset + 600, 70, 0.8);
+  });
+
+  const treesLayer = new ParallaxLayer(80, (ctx, offset) => {
+    drawTree(ctx, offset + 100, gameHeight - groundHeight, 1);
+    drawTree(ctx, offset + 300, gameHeight - groundHeight, 0.8);
+    drawTree(ctx, offset + 500, gameHeight - groundHeight, 1.2);
+    drawTree(ctx, offset + 700, gameHeight - groundHeight, 0.9);
+  });
+
+  let obstacles = [];
+  let obstacleTimer = 0;
+  let obstacleInterval = 1500;
+
+  let particles = [];
+
+  let running = false;
+  let gameStartTime = 0;
+  let lastTime = 0;
+  let jumpVelocity = 0;
+  const gravity = 2000;
+  let axoloteY = 0;
+  let isOnGround = true;
+
+  let distance = 0;
+  let multiplier = 1;
+  let record = localStorage.getItem('axoloteRecord') || 0;
+
+  function resetGame() {
+    obstacles.forEach(o => o.element.remove());
+    obstacles = [];
+    particles.forEach(p => p.element.remove());
+    particles = [];
+    jumpVelocity = 0;
+    axoloteY = 0;
+    isOnGround = true;
+    distance = 0;
+    multiplier = 1;
+    gameStartTime = performance.now();
+    lastTime = gameStartTime;
+    updateHUD(0,0,multiplier);
+    gameOverScreen.style.display = 'none';
+    startScreen.style.display = 'none';
+    running = true;
+    console.log("Jogo iniciado");
+  }
+
+  function updateHUD(timeS, distanceM, multiplier) {
+    timeDisplay.textContent = timeS.toFixed(2);
+    distanceDisplay.textContent = Math.floor(distanceM);
+    recordDisplay.textContent = parseFloat(record).toFixed(2);
+    multiplierDisplay.textContent = multiplier.toFixed(1) + 'x';
+  }
+
+  function spawnObstacle() {
+    const obs = document.createElement('div');
+    obs.classList.add('obstacle');
+    const types = [
+      {width: 20, height: 40}, 
+      {width: 30, height: 30}, 
+      {width: 15, height: 50},
+      {width: 25, height: 45}
+    ];
+    const t = types[Math.floor(Math.random() * types.length)];
+    obs.style.width = t.width + 'px';
+    obs.style.height = t.height + 'px';
+    obs.style.bottom = groundHeight + 'px';
+    obs.style.left = gameWidth + 'px';
+    gameContainer.appendChild(obs);
+    obstacles.push({element: obs, width: t.width, height: t.height, x: gameWidth, y: groundHeight});
+  }
+
+  function cleanupParticles() {
+    particles = particles.filter(p => {
+      if (p.life <= 0) {
+        p.element.remove();
+        return false;
+      }
+      return true;
+    });
+  }
+
+  function createJumpParticles() {
+    for (let i=0; i<6; i++) {
+      const p = document.createElement('div');
+      p.classList.add('particle');
+      const size = 6 + Math.random() * 6;
+      p.style.width = size + 'px';
+      p.style.height = size + 'px';
+      const posX = 80 + Math.random() * 40;
+      const posY = gameHeight - groundHeight + 10;
+      p.style.left = posX + 'px';
+      p.style.top = posY + 'px';
+      gameContainer.appendChild(p);
+      particles.push({element: p, life: 600});
+    }
+  }
+
+  let keys = {};
+  function onKeyDown(e) {
+    if (e.repeat) return;
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      e.preventDefault();
+      if (running && isOnGround) {
+        jumpVelocity = -700;
+        isOnGround = false;
+        createJumpParticles();
+      } else if (!running) {
+        startBtn.click();
+      }
+    }
+    keys[e.code] = true;
+  }
+  function onKeyUp(e) {
+    keys[e.code] = false;
+  }
+
+  function onClick() {
+    if (!running) {
+      startBtn.click();
+    } else if (isOnGround) {
+      jumpVelocity = -700;
+      isOnGround = false;
+      createJumpParticles();
+    }
+  }
+
+  function isColliding(ax, ay, aw, ah, bx, by, bw, bh) {
+    return !(ax + aw < bx || ax > bx + bw || ay + ah < by || ay > by + bh);
+  }
+
+  function update(now) {
+    if (!running) return;
+    let delta = (now - lastTime) / 1000;
+    lastTime = now;
+
+    cloudsLayer.update(delta);
+    treesLayer.update(delta);
+
+    ctx.clearRect(0, 0, gameWidth, gameHeight);
+    cloudsLayer.draw();
+    treesLayer.draw();
+
+    jumpVelocity += gravity * delta;
+    axoloteY += jumpVelocity * delta;
+    if (axoloteY > 0) {
+      axoloteY = 0;
+      jumpVelocity = 0;
+      isOnGround = true;
+    }
+
+    axolote.style.bottom = (groundHeight + axoloteY) + 'px';
+    tail.style.bottom = (groundHeight + axoloteY) + 'px';
+    shadow.style.transform = `scale(${1 - Math.min(0.5, -axoloteY / 150)})`;
+    shadow.style.opacity = isOnGround ? 0.6 : 0.3;
+
+    const elapsed = (now - gameStartTime) / 1000;
+    distance += 200 * delta * multiplier;
+    let newMultiplier = 1 + Math.floor(elapsed / 10) * 0.1;
+    if (newMultiplier !== multiplier) multiplier = newMultiplier;
+
+    updateHUD(elapsed, distance / 10, multiplier);
+
+    obstacleTimer += delta * 1000;
+    if (obstacleTimer > obstacleInterval) {
+      spawnObstacle();
+      obstacleTimer = 0;
+      obstacleInterval = 1200 + Math.random() * 800;
+    }
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      let o = obstacles[i];
+      o.x -= 220 * delta;
+      if (o.x + o.width < 0) {
+        o.element.remove();
+        obstacles.splice(i, 1);
+        continue;
+      }
+      o.element.style.left = o.x + 'px';
+
+      let axoloteBox = {
+        x: 80,
+        y: groundHeight + axoloteY,
+        w: axolote.offsetWidth,
+        h: axolote.offsetHeight
+      };
+      let obsBox = {
+        x: o.x,
+        y: groundHeight,
+        w: o.width,
+        h: o.height
+      };
+      if (isColliding(axoloteBox.x, axoloteBox.y, axoloteBox.w, axoloteBox.h, obsBox.x, obsBox.y, obsBox.w, obsBox.h)) {
+        gameOver();
+      }
+    }
+
+    particles.forEach(p => {
+      p.life -= delta * 1000;
+      if (p.life > 0) {
+        let t = (600 - p.life) / 600;
+        p.element.style.top = parseFloat(p.element.style.top) - 60 * delta + 'px';
+        p.element.style.opacity = (p.life / 600).toFixed(2);
+        p.element.style.transform = `scale(${p.life / 600})`;
+      }
+    });
+    cleanupParticles();
+
+    requestAnimationFrame(update);
+  }
+
+  function gameOver() {
+    running = false;
+    const elapsed = (performance.now() - gameStartTime) / 1000;
+    finalStats.textContent = `Tempo: ${elapsed.toFixed(2)}s\nDistância: ${Math.floor(distance / 10)}m\nMultiplicador: ${multiplier.toFixed(1)}x`;
+    gameOverScreen.style.display = 'flex';
+    if (elapsed > record) {
+      record = elapsed;
+      localStorage.setItem('axoloteRecord', record);
+      alert('Novo recorde! Parabéns!');
+    }
+  }
+
+  startBtn.addEventListener('click', () => {
+    resetGame();
+    requestAnimationFrame(update);
+  });
+  restartBtn.addEventListener('click', () => {
+    resetGame();
+    requestAnimationFrame(update);
+  });
+
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  gameContainer.addEventListener('click', onClick);
+})();
+</script>
+
+</body>
+</html>
