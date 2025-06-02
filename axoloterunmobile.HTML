@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Speedrun Axolote - Mobile</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body, html {
+    width: 100%; height: 100%;
+    background: #ade7f4;
+    font-family: sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-tap-highlight-color: transparent;
+    user-select:none;
+  }
+  #game {
+    position: relative;
+    width: 100vw;
+    max-width: 900px;
+    aspect-ratio: 9 / 4; /* mantem proporção do jogo */
+    border: 4px solid #333;
+    background: linear-gradient(to top, #7ed6df 0%, #b0e0e6 70%, #f0f9ff 100%);
+    overflow: hidden;
+    touch-action: manipulation;
+  }
+  #axolote {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACwAAAAvCAYAAAC4h7ZRAAAACXBIWXMAAAsTAAALEwEAmpwYAAABXElEQVR4nO3XO07CUBQA4PEJo7EqY6Ab5G7BKrAqAqgKgKoDchv6MEZ9mIuRxD6ZpG3SQGOWxsMT5B5cJx4Egk9pE7FjD1sxGoYHk8DjBQA6BwBoPwAkCQMg3egKmyFAoARAEBSglWq3mZj+fXzPbd4nm+Xy+VqNXq9H+vrA83q9Xq9Pq/UQlAkHhyPY7FYDGAxOEhAf34AyHb7Ybw9qcyzLOIoPFolDp9MJsNcNoMv9qNBoMs9lM1mWyGQy2Ww2C43O53L5XMdrvdDrDcxwOYmPZkEm29Xs9lsNmI6/Pb9dvtFqtFoPB4DLx0OByGQymQyqXy+UwhCTiqVSiVSqVTqfRuEE4Hj+qurq6LQtOlsNmIzGYA2qVKoVi+WwWWysuWIEvHxUHHsE8WwWNhpPYvhcDgVqtFqPRCJRKJZDJZDLp9MoEGzHb7brdTpVKpRKJRCISaLVaLRaPTaQQAHo+8/06fJTKZDKZDKZRCKRRL8AzLj2zsrn+uoAAAAASUVORK5CYII=');
+    background-size: contain;
+    background-repeat: no-repeat;
+    border-radius: 10px;
+    box-shadow: 0 0 10px #ff6f61;
+  }
+  #shadow {
+    position: absolute;
+    width: 48px;
+    height: 12px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 50%;
+  }
+  .obstacle {
+    position: absolute;
+    background: #065535;
+    border-radius: 6px;
+  }
+  #score {
+    position: absolute;
+    top: 10px; right: 15px;
+    font-weight: bold;
+    font-size: 22px;
+    color: #222;
+    user-select:none;
+    z-index: 5;
+  }
+  #start-screen, #game-over {
+    position: absolute;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    font-size: 28px;
+    z-index: 10;
+  }
+  button {
+    margin-top: 20px;
+    font-size: 20px;
+    padding: 10px 30px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #4caf50;
+    color: white;
+    font-weight: 700;
+    user-select:none;
+  }
+  button:hover {
+    background: #45a049;
+  }
+</style>
+</head>
+<body>
+  <div id="game" tabindex="0">
+    <div id="axolote"></div>
+    <div id="shadow"></div>
+    <div id="score">Tempo: 0.00s</div>
+
+    <div id="start-screen">
+      <div>Speedrun Axolote</div>
+      <button id="start-btn">Começar</button>
+      <div style="margin-top:20px; font-size:16px; text-align:center; max-width:300px;">
+        Toque na tela para pular durante o jogo.
+      </div>
+    </div>
+
+    <div id="game-over" style="display:none;">
+      <div>Game Over!</div>
+      <div id="final-score" style="margin-top:15px; font-size:22px;"></div>
+      <button id="restart-btn">Jogar Novamente</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const game = document.getElementById('game');
+  const axolote = document.getElementById('axolote');
+  const shadow = document.getElementById('shadow');
+  const scoreDisplay = document.getElementById('score');
+  const startScreen = document.getElementById('start-screen');
+  const gameOverScreen = document.getElementById('game-over');
+  const finalScore = document.getElementById('final-score');
+  const startBtn = document.getElementById('start-btn');
+  const restartBtn = document.getElementById('restart-btn');
+
+  // base width and height, game logic uses these
+  const BASE_WIDTH = 900;
+  const BASE_HEIGHT = 400;
+  const GROUND_Y_BASE = BASE_HEIGHT - 100;
+  const AXO_WIDTH_BASE = 48;
+  const AXO_HEIGHT_BASE = 48;
+
+  let scale = 1; // scale factor from base to actual size
+
+  // position and physics in base scale units
+  let axoX = 100;
+  let axoY = GROUND_Y_BASE - AXO_HEIGHT_BASE;
+  let vy = 0;
+  let gravity = 0.8;
+  let jumping = false;
+  let running = false;
+
+  let obstacles = [];
+  let obstacleInterval = 1500;
+  let lastObstacleTime = 0;
+
+  let startTime = 0;
+  let elapsedTime = 0;
+
+  function scaleValue(value){
+    return value * scale;
+  }
+
+  function reset(){
+    axoY = GROUND_Y_BASE - AXO_HEIGHT_BASE;
+    vy = 0;
+    jumping = false;
+    running = false;
+    obstacles.forEach(o => game.removeChild(o.elem));
+    obstacles = [];
+    lastObstacleTime = 0;
+    startTime = 0;
+    elapsedTime = 0;
+    updatePositions();
+    scoreDisplay.textContent = "Tempo: 0.00s";
+  }
+
+  function updatePositions(){
+    axolote.style.left = scaleValue(axoX) + "px";
+    axolote.style.top = scaleValue(axoY) + "px";
+    shadow.style.left = scaleValue(axoX) + "px";
+    shadow.style.top = scaleValue(GROUND_Y_BASE + 8) + "px";
+
+    // update obstacle positions and sizes
+    obstacles.forEach(obs => {
+      obs.elem.style.left = scaleValue(obs.x) + "px";
+      obs.elem.style.bottom = scaleValue(100) + "px";
+      obs.elem.style.width = scaleValue(obs.w) + "px";
+      obs.elem.style.height = scaleValue(obs.h) + "px";
+    });
+  }
+
+  function spawnObstacle(){
+    const size = 30 + Math.random() * 20;
+    let obsElem = document.createElement('div');
+    obsElem.classList.add('obstacle');
+    obsElem.style.bottom = scaleValue(100) + 'px';
+    game.appendChild(obsElem);
+
+    obstacles.push({
+      elem: obsElem,
+      x: BASE_WIDTH,
+      y: GROUND_Y_BASE - size,
+      w: size,
+      h: size,
+      speed: 6 + Math.random() * 2
+    });
+    // immediately set size for new obs scaled
+    obsElem.style.width = scaleValue(size) + 'px';
+    obsElem.style.height = scaleValue(size) + 'px';
+    obsElem.style.left = scaleValue(BASE_WIDTH) + 'px';
+  }
+
+  function gameLoop(timestamp){
+    if(!running) return;
+    if(!startTime) startTime = timestamp;
+
+    elapsedTime = (timestamp - startTime)/1000;
+    scoreDisplay.textContent = "Tempo: " + elapsedTime.toFixed(2) + "s";
+
+    if(timestamp - lastObstacleTime > obstacleInterval){
+      spawnObstacle();
+      lastObstacleTime = timestamp;
+      if(obstacleInterval > 700) obstacleInterval -= 10;
+    }
+
+    obstacles.forEach((obs,i) => {
+      obs.x -= obs.speed;
+      if(obs.x + obs.w < 0){
+        game.removeChild(obs.elem);
+        obstacles.splice(i,1);
+      }
+    });
+
+    // jump physics
+    if(jumping){
+      vy += gravity;
+      axoY += vy;
+      if(axoY >= GROUND_Y_BASE - AXO_HEIGHT_BASE){
+        axoY = GROUND_Y_BASE - AXO_HEIGHT_BASE;
+        vy = 0;
+        jumping = false;
+      }
+    }
+
+    updatePositions();
+
+    // check collision
+    for(let obs of obstacles){
+      if(collides(axoX, axoY, AXO_WIDTH_BASE, AXO_HEIGHT_BASE,
+                 obs.x, GROUND_Y_BASE - obs.h, obs.w, obs.h)){
+        endGame();
+        return;
+      }
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  function collides(x1,y1,w1,h1,x2,y2,w2,h2){
+    return !(x2 > x1 + w1 ||
+             x2 + w2 < x1 ||
+             y2 > y1 + h1 ||
+             y2 + h2 < y1);
+  }
+
+  function jump(){
+    if(!jumping && running){
+      vy = -15;
+      jumping = true;
+    }
+  }
+
+  function startGame(){
+    reset();
+    startScreen.style.display = 'none';
+    gameOverScreen.style.display = 'none';
+    running = true;
+    requestAnimationFrame(gameLoop);
+  }
+
+  function endGame(){
+    running = false;
+    finalScore.textContent = "Você sobreviveu: " + elapsedTime.toFixed(2) + " segundos";
+    gameOverScreen.style.display = 'flex';
+  }
+
+  function resizeGame(){
+    // scale game container to viewport width, max 900px
+    const vw = window.innerWidth;
+    scale = Math.min(vw / BASE_WIDTH, 1);
+    game.style.width = (BASE_WIDTH * scale) + "px";
+    game.style.height = (BASE_HEIGHT * scale) + "px";
+
+    updatePositions();
+  }
+
+  // input events
+  game.addEventListener('click', e => {
+    if(running) jump();
+  });
+
+  // keyboard controls for desktop testing
+  window.addEventListener('keydown', e => {
+    if(e.code === "Space"){
+      if(running) jump();
+      else startGame();
+    }
+  });
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  // initial resize
+  window.addEventListener('resize', resizeGame);
+  resizeGame();
+
+})();
+</script>
+</body>
+</html>
+
